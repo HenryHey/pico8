@@ -8,12 +8,22 @@ maxstars=30
 distbetweenenemies = 20
 disttopath2 = 2
 startypes={}
-debug=true
+debug=false
 
 currentenemy={}
 
 function p(text,x,y,color)
  if (debug) print(text,x,y,color)
+end
+
+function printshot(s)
+ p(s.x..','..s.y, 1, 8, 7)
+ p(s.x+s.width..','..s.y+s.height, 1, 16, 7)
+end
+
+function printenemy(e)
+ p(e.x..','..e.y, 1, 32, 7)
+ p(e.x+e.width..','..e.y+e.height, 1, 40, 7)
 end
 
 function distance(x0, y0, x1, y1)
@@ -25,7 +35,7 @@ function distance2(x0, y0, x1, y1)
 end
 
 function _init()
-	poke(0x5f5d, 8)
+	poke(0x5f5d, 4)
  poke(0x5f5c, 8)
 
 	ship.x=60
@@ -33,9 +43,9 @@ function _init()
 	ship.spd=2
 	ship.spr=1
  
- add(startypes, { spd=1, col=1 })
- add(startypes, { spd=2, col=5 })
- add(startypes, { spd=3, col=6 })
+ add(startypes, { spd=0.5, col=1 })
+ add(startypes, { spd=1, col=5 })
+ add(startypes, { spd=1.5, col=6 })
 
  for i=1,maxstars do
   local star={}
@@ -65,10 +75,12 @@ function updateship()
  
  if btnp(4) then
   shot={}
-  shot.x=ship.x
+  shot.x=ship.x+4
   shot.y=ship.y-2
   shot.spd=-3
   shot.spr=4
+  shot.width=3
+  shot.height=4
   add(shots,shot)
  end
 end
@@ -78,6 +90,13 @@ function updateshots()
   if s.y < 0 then
    del(shots,s)
   else
+   for e in all(currentenemy) do
+    if s.x + s.width >= e.x and s.x <= e.x + e.width and
+       s.y <= e.y + e.height and s.y + s.height >= e.y then
+     e.state = 1
+     del(shots,s)
+    end
+   end
    s.y+=shot.spd
   end
  end
@@ -99,6 +118,9 @@ function addenemy(x, y, spd, number, paths)
  e.x=x
  e.y=y
  e.spd=spd
+ e.width=6
+ e.height=7
+ e.state=0
  e.paths={}
  for p in all(paths) do
   add(e.paths, p)
@@ -123,10 +145,10 @@ end
 function updateenemies()
  if #currentenemy == 0 then
   paths = {}
-  add(paths, {x=10, y=100})
+  add(paths, {x=30, y=100})
   add(paths, {x=100, y=100})
-  add(paths, {x=100,y=50})
-  addenemy(100, 0, 1, 6, paths)
+  add(paths, {x=100,y=-10})
+  addenemy(30, -10, 0.5, 6, paths)
  else
   for e in all(currentenemy) do
    if distance2(e.x, e.y, e.paths[e.currentpath].x, e.paths[e.currentpath].y) > disttopath2 then
@@ -147,11 +169,22 @@ function updateenemies()
  end
 end
 
-function _update()
+function _update60()
 	updateship()
 	updateshots()
  updatestars()
  updateenemies()
+end
+
+function drawenemy()
+ for e in all(currentenemy) do
+  if e.state == 0 then
+   local col=10+e.currentpath
+   rectfill(e.x,e.y,e.x+e.width,e.y+e.height,col)
+  elseif e.state == 1 then
+   del(currentenemy, e)
+  end
+ end
 end
 
 function _draw()
@@ -166,28 +199,24 @@ function _draw()
 	end
 	spr(ship.spr,ship.x,ship.y)
 
- local i=1
- for e in all(currentenemy) do
-  local color=10+e.currentpath
-  p(e.x, i, 8,color)
-  p(e.y, i, 16,color)
-  p(e.dirx, i, 24,color)
-  p(e.diry, i, 30,color)
-  p(distance2(e.x, e.y, e.paths[e.currentpath].x, e.paths[e.currentpath].y), i, 36,color)
+ drawenemy()
 
-  circfill(e.x,e.y,3,color)
-  i+=32
+ if #shots > 0 then
+  printshot(shots[1])
  end
 
-	p(#currentenemy,1,1)
+ if #currentenemy > 0 then
+  printenemy(currentenemy[1])
+ end
+
  p(stat(7),100,1)
 end
 __gfx__
-00000000000010000000100000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000000000001110000011100000111000000a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-007007000011c11000111c10001c1110000a9a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-00077000001ccc100011ccc000ccc110000a9a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
-000770000011c11000111c10001c11100000a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000000000000100000001000000010000a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00000000000111000001110000011100a9a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+007007000011c11000111c10001c1110a9a000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+00077000001ccc100011ccc000ccc1100a0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
+000770000011c11000111c10001c1110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00700700011111110111111101111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000011111110111111101111111000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
 00000000010000010100000101000001000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000
